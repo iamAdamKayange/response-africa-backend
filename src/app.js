@@ -15,9 +15,10 @@ app.use(helmet());
 app.use(
   cors({
     origin(origin, cb) {
-      // Allow server-to-server calls (no Origin header), the configured sites, and Vercel preview URLs.
+      // Allow server-to-server calls (no Origin header), the configured sites, and the Vercel URLs
+      // (incl. previews) of the website and the admin panel projects.
       if (!origin || config.corsOrigins.includes(origin) || config.corsOrigins.includes("*")) return cb(null, true);
-      if (/^https:\/\/rapid-response-africa[\w-]*\.vercel\.app$/.test(origin)) return cb(null, true);
+      if (/^https:\/\/(rapid-response-africa|admin-response-africa)[\w-]*\.vercel\.app$/.test(origin)) return cb(null, true);
       cb(null, false);
     },
   })

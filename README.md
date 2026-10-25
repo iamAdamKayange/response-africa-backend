@@ -19,7 +19,7 @@ npm run dev               # http://localhost:4000/api/health
 | Variable | Value |
 | --- | --- |
 | `DATABASE_URL` | Neon → Connection details → **pooled** connection string |
-| `CORS_ORIGIN` | Your site, e.g. `https://rapid-response-africa.vercel.app` (comma-separate several) |
+| `CORS_ORIGIN` | The website **and** the admin panel, comma-separated, e.g. `https://rapid-response-africa.vercel.app,https://admin-response-africa.vercel.app` |
 
 `JWT_SECRET` is generated automatically. Tables are created/updated on every start (`npm run migrate`, idempotent).
 
