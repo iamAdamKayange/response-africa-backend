@@ -1,0 +1,25 @@
+# Render Blueprint: https://render.com/docs/blueprint-spec
+# In Render: New → Blueprint → pick this repository. Fill in the secret env vars when prompted.
+services:
+  - type: web
+    name: rapid-response-africa-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    buildCommand: npm ci
+    # Migrations are idempotent; running them at start works on the free plan (pre-deploy commands are paid-only).
+    startCommand: npm run migrate && npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: CORS_ORIGIN
+        sync: false
