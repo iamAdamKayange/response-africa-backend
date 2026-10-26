@@ -23,3 +23,13 @@ services:
         value: 7d
       - key: CORS_ORIGIN
         sync: false
+      - key: R2_ACCOUNT_ID
+        sync: false
+      - key: R2_ACCESS_KEY_ID
+        sync: false
+      - key: R2_SECRET_ACCESS_KEY
+        sync: false
+      - key: R2_BUCKET
+        value: africa-response-backet
+      - key: R2_PUBLIC_URL
+        sync: false

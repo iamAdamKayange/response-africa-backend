@@ -7,6 +7,7 @@ import { errorHandler, notFound } from "./middleware/error.js";
 import admin from "./routes/admin.js";
 import auth from "./routes/auth.js";
 import publicRoutes from "./routes/public.js";
+import { media } from "./routes/uploads.js";
 
 export const app = express();
 
@@ -32,6 +33,7 @@ app.get("/api/health", async (_req, res) => {
   res.json({ status: "ok", database: "connected", time: rows[0].now });
 });
 
+app.use("/api/media", media);
 app.use("/api/auth", auth);
 app.use("/api/admin", admin);
 app.use("/api", publicRoutes);

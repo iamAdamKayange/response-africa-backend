@@ -19,6 +19,8 @@ npm run dev               # http://localhost:4000/api/health
 | Variable | Value |
 | --- | --- |
 | `DATABASE_URL` | Neon → Connection details → **pooled** connection string |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Cloudflare R2 keys for image uploads (see below) |
+| `R2_PUBLIC_URL` | The bucket's public URL (see below); optional |
 | `CORS_ORIGIN` | The website **and** the admin panel, comma-separated, e.g. `https://rapid-response-africa.vercel.app,https://admin-response-africa.vercel.app` |
 
 `JWT_SECRET` is generated automatically. Tables are created/updated on every start (`npm run migrate`, idempotent).
@@ -59,6 +61,7 @@ Public
 | GET | `/api/articles/:slug` | Published only |
 | GET | `/api/briefings` | `?limit=` |
 | POST | `/api/subscribers` | `{ email }` |
+| GET | `/api/media/<key>` | Uploaded images (when the bucket has no public URL) |
 
 Auth (`Authorization: Bearer <token>`)
 
@@ -70,6 +73,7 @@ Auth (`Authorization: Bearer <token>`)
 | GET/POST | `/api/admin/articles` | Authors see only their own |
 | GET/PUT/DELETE | `/api/admin/articles/:id` | |
 | GET/POST/PUT/DELETE | `/api/admin/briefings[/:id]` | |
+| POST | `/api/admin/uploads` | multipart field `file` → `{ url, key }` |
 | GET/POST/PUT/DELETE | `/api/admin/users[/:id]` | Admin only |
 | GET/DELETE | `/api/admin/subscribers[/:id]` | Admin only; `?format=csv` to export |
 
@@ -83,8 +87,20 @@ Plain paragraphs are separated by a blank line.
 > A pull quote
 ```
 
+## Image uploads (Cloudflare R2)
+
+Editors upload images from the panel (`POST /api/admin/uploads`, max 10 MB, JPG/PNG/WebP/GIF/AVIF).
+Files go to the R2 bucket under `articles/YYYY/MM/`; Render's own disk is never used.
+
+**Turn on public access for fast image delivery:** Cloudflare → R2 → `africa-response-backet` → Settings →
+Public access → enable the **r2.dev** URL (quick) or connect a custom domain such as `media.rapid-response.com`
+(recommended for production). Put that address in `R2_PUBLIC_URL`.
+
+Until `R2_PUBLIC_URL` is set, uploads still work: images are served through this API at `/api/media/...`
+(slower, and they wait for the API to wake up on the free plan). Images uploaded in that mode keep their
+`/api/media/...` address, so set `R2_PUBLIC_URL` before real publishing starts.
+
 ## Notes
 
-- Images are stored as URLs (Unsplash, Cloudinary, your CDN…). Render's disk is not persistent, so uploads
-  should go to an external store if you add them later.
+- Editors can also paste image URLs from anywhere (Unsplash, etc.).
 - If the logs show a `pg` SSL-mode warning, you can change `sslmode=require` to `sslmode=verify-full` in `DATABASE_URL`.

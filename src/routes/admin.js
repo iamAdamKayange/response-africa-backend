@@ -5,6 +5,7 @@ import { ARTICLE_SELECT, toArticle } from "../serializers.js";
 import { HttpError } from "../utils.js";
 import articles from "./articles.js";
 import briefings from "./briefings.js";
+import { uploads } from "./uploads.js";
 import users from "./users.js";
 
 const router = Router();
@@ -41,6 +42,7 @@ router.get("/sections", async (_req, res) => {
   res.json({ sections: rows });
 });
 
+router.use("/uploads", uploads);
 router.use("/articles", articles);
 router.use("/briefings", briefings);
 router.use("/users", requireRole("admin"), users);
