@@ -11,33 +11,43 @@ npm run setup             # creates tables + sections, demo accounts and sample 
 npm run dev               # http://localhost:4000/api/health
 ```
 
-## Deploy on Render
+## Production (Hetzner VPS)
 
-**Option A — Blueprint (recommended):** push this folder to its own GitHub repo, then in Render choose
-**New → Blueprint** and select the repo. `render.yaml` configures everything. When asked, set:
+Live at **https://api.rapid-response.africa** — Ubuntu VPS, Node under **PM2** (process `response-africa-api`),
+**Nginx** reverse proxy to `127.0.0.1:4000`, HTTPS by Let's Encrypt (Certbot). Database: Neon. Media: Cloudflare R2.
+
+The server reads `.env` in the project folder (see `.env.example`). Required in production:
 
 | Variable | Value |
 | --- | --- |
 | `DATABASE_URL` | Neon → Connection details → **pooled** connection string |
-| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY` | Cloudflare R2 keys for image uploads (see below) |
-| `R2_PUBLIC_URL` | The bucket's public URL (see below); optional |
-| `CORS_ORIGIN` | The website **and** the admin panel, comma-separated, e.g. `https://rapid-response-africa.vercel.app,https://admin-response-africa.vercel.app` |
+| `JWT_SECRET` | Long random string (`node -e "console.log(require('crypto').randomBytes(48).toString('hex'))"`) |
+| `NODE_ENV` | `production` |
+| `PORT` | `4000` |
+| `R2_ACCOUNT_ID`, `R2_ACCESS_KEY_ID`, `R2_SECRET_ACCESS_KEY`, `R2_BUCKET` | Cloudflare R2 keys for image uploads |
+| `R2_PUBLIC_URL` | The bucket's public URL (r2.dev or custom domain) |
+| `CORS_ORIGIN` | Optional extra origins. `https://rapid-response.africa`, `https://www.rapid-response.africa`, `https://admin.rapid-response.africa` (any `*.rapid-response.africa` over https) and the projects' Vercel URLs are always allowed. |
 
-`JWT_SECRET` is generated automatically. Tables are created/updated on every start (`npm run migrate`, idempotent).
-
-**Option B — manual Web Service:** Runtime Node · Build `npm ci` · Start `npm run migrate && npm start` ·
-Health check `/api/health` · add the same env vars plus `JWT_SECRET` and `NODE_ENV=production`.
-
-Seed once (from your computer, pointing at the production database, or from the Render Shell):
+### Update the server after a push
 
 ```bash
-npm run seed
+cd ~/response-africa-backend        # wherever the repo is cloned
+git pull
+npm ci --omit=dev
+npm run migrate                     # idempotent
+pm2 restart response-africa-api --update-env
+pm2 logs response-africa-api --lines 50
+curl -s https://api.rapid-response.africa/api/health
 ```
 
-Then in Vercel set `NEXT_PUBLIC_API_URL=https://<your-render-service>.onrender.com` and redeploy the site.
+First-time PM2 setup (if starting from scratch): `pm2 start src/server.js --name response-africa-api`, then
+`pm2 save` and `pm2 startup` so it comes back after a reboot.
 
-> Render's free plan sleeps after 15 minutes idle; the first request then takes ~30–50 s. The website falls back to
-> built-in content while the API wakes up. Upgrade the plan for always-on.
+Seed demo accounts and sample content once (never needed again on an existing database): `npm run seed`.
+
+### Alternative: Render
+
+`render.yaml` is a Render Blueprint (New → Blueprint). Render's free plan sleeps when idle.
 
 ## Demo accounts
 
@@ -90,14 +100,14 @@ Plain paragraphs are separated by a blank line.
 ## Image uploads (Cloudflare R2)
 
 Editors upload images from the panel (`POST /api/admin/uploads`, max 10 MB, JPG/PNG/WebP/GIF/AVIF).
-Files go to the R2 bucket under `articles/YYYY/MM/`; Render's own disk is never used.
+Files go to the R2 bucket under `articles/YYYY/MM/`; the server's own disk is never used.
 
 **Turn on public access for fast image delivery:** Cloudflare → R2 → `africa-response-backet` → Settings →
 Public access → enable the **r2.dev** URL (quick) or connect a custom domain such as `media.rapid-response.com`
 (recommended for production). Put that address in `R2_PUBLIC_URL`.
 
 Until `R2_PUBLIC_URL` is set, uploads still work: images are served through this API at `/api/media/...`
-(slower, and they wait for the API to wake up on the free plan). Images uploaded in that mode keep their
+(slower). Images uploaded in that mode keep their
 `/api/media/...` address, so set `R2_PUBLIC_URL` before real publishing starts.
 
 ## Notes

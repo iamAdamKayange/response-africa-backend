@@ -1,3 +1,8 @@
+// Load ./.env when present (e.g. on the VPS under PM2). Variables already set in the environment win.
+try {
+  process.loadEnvFile();
+} catch {}
+
 const required = (name) => {
   const value = process.env[name];
   if (!value) throw new Error(`Missing required environment variable: ${name}`);

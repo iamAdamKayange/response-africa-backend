@@ -11,15 +11,23 @@ import { media } from "./routes/uploads.js";
 
 export const app = express();
 
-app.set("trust proxy", 1); // Render sits behind a proxy; needed for rate limiting by real IP.
+app.set("trust proxy", 1); // Behind Nginx (or Render); needed for rate limiting by real IP and https URLs.
 app.use(helmet());
+
+// Origins that are always allowed besides CORS_ORIGIN: the production domains (site, www, admin…)
+// and the Vercel URLs (incl. previews) of the website and admin projects.
+const BUILT_IN_ORIGINS = [
+  /^https:\/\/([a-z0-9-]+\.)?rapid-response\.africa$/,
+  /^https:\/\/(rapid-response-africa|admin-response-africa)[\w-]*\.vercel\.app$/,
+];
+
 app.use(
   cors({
     origin(origin, cb) {
-      // Allow server-to-server calls (no Origin header), the configured sites, and the Vercel URLs
-      // (incl. previews) of the website and the admin panel projects.
+      // Requests without an Origin header are server-to-server (e.g. the website's own server rendering).
       if (!origin || config.corsOrigins.includes(origin) || config.corsOrigins.includes("*")) return cb(null, true);
-      if (/^https:\/\/(rapid-response-africa|admin-response-africa)[\w-]*\.vercel\.app$/.test(origin)) return cb(null, true);
+      if (BUILT_IN_ORIGINS.some((re) => re.test(origin))) return cb(null, true);
+      console.warn(`[cors] blocked origin ${origin}; add it to CORS_ORIGIN if it is yours`);
       cb(null, false);
     },
   })
