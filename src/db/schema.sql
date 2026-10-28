@@ -64,3 +64,9 @@ CREATE TABLE IF NOT EXISTS subscribers (
   source     TEXT        NOT NULL DEFAULT 'website',
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+
+-- Only one lead story: keep the most recently published one if several are flagged (idempotent).
+UPDATE articles SET featured = FALSE
+WHERE featured AND id <> (
+  SELECT id FROM articles WHERE featured ORDER BY published_at DESC NULLS LAST, id DESC LIMIT 1
+);

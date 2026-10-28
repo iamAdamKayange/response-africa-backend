@@ -62,6 +62,16 @@ async function toColumns(req, data, existing) {
   return cols;
 }
 
+/** Only one lead story at a time: making an article the lead clears the flag everywhere else. */
+const clearOtherLeads = (id) => query("UPDATE articles SET featured = FALSE WHERE featured AND id <> $1", [id]);
+
+// Admin list order. "newest" is stable (editing an article does not move it); "updated" shows recent edits first.
+const SORTS = {
+  newest: "COALESCE(a.published_at, a.created_at) DESC, a.id DESC",
+  updated: "a.updated_at DESC, a.id DESC",
+  title: "a.title ASC",
+};
+
 async function uniqueSlug(base, ignoreId) {
   let slug = base;
   for (let n = 2; ; n++) {
@@ -103,7 +113,7 @@ router.get("/", async (req, res) => {
 
   const whereSql = where.length ? `WHERE ${where.join(" AND ")}` : "";
   const [{ rows }, count] = await Promise.all([
-    query(`${ARTICLE_SELECT} ${whereSql} ORDER BY a.updated_at DESC LIMIT ${limit} OFFSET ${offset}`, params),
+    query(`${ARTICLE_SELECT} ${whereSql} ORDER BY ${SORTS[req.query.sort] ?? SORTS.newest} LIMIT ${limit} OFFSET ${offset}`, params),
     query(`SELECT COUNT(*) AS total FROM articles a ${whereSql}`, params),
   ]);
   res.json({ articles: rows.map((r) => toArticle(r, { withBody: false })), total: count.rows[0].total });
@@ -123,6 +133,7 @@ router.post("/", async (req, res) => {
     `INSERT INTO articles (${keys.join(", ")}) VALUES (${keys.map((_, i) => `$${i + 1}`).join(", ")}) RETURNING id`,
     keys.map((k) => cols[k])
   );
+  if (cols.featured) await clearOtherLeads(rows[0].id);
   const created = await query(`${ARTICLE_SELECT} WHERE a.id = $1`, [rows[0].id]);
   res.status(201).json({ article: toArticle(created.rows[0]) });
 });
@@ -136,6 +147,7 @@ router.put("/:id", async (req, res) => {
   if (Object.keys(cols).length) {
     const { sql, params } = setClause(cols, 2);
     await query(`UPDATE articles SET ${sql}, updated_at = NOW() WHERE id = $1`, [existing.id, ...params]);
+    if (cols.featured) await clearOtherLeads(existing.id);
   }
   const updated = await query(`${ARTICLE_SELECT} WHERE a.id = $1`, [existing.id]);
   res.json({ article: toArticle(updated.rows[0]) });
