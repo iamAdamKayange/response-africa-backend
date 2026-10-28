@@ -1,6 +1,7 @@
 import cors from "cors";
 import express from "express";
 import helmet from "helmet";
+import rateLimit from "express-rate-limit";
 import { config } from "./config.js";
 import { query } from "./db/pool.js";
 import { errorHandler, notFound } from "./middleware/error.js";
@@ -33,6 +34,12 @@ app.use(
   })
 );
 app.use(express.json({ limit: "1mb" }));
+
+// Generous ceiling for signed-in work, to blunt scripted abuse of a stolen token (login has its own limit).
+app.use(
+  "/api/admin",
+  rateLimit({ windowMs: 5 * 60 * 1000, limit: 600, standardHeaders: "draft-8", legacyHeaders: false, message: { error: "Too many requests, slow down." } })
+);
 
 app.get("/", (_req, res) => res.json({ name: "The Rapid Response Africa API", status: "ok", docs: "/api/health" }));
 

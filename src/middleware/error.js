@@ -11,7 +11,9 @@ export function errorHandler(err, _req, res, _next) {
   if (err.code === "23505") err = new HttpError(409, "That value is already in use");
   if (err.code === "23503") err = new HttpError(400, "A referenced record does not exist");
 
-  const status = err.status || 500;
-  if (status >= 500) console.error("[error]", err);
-  res.status(status).json({ error: status >= 500 ? "Something went wrong" : err.message, details: err.details });
+  const status = err.status || err.statusCode || 500;
+  // Our own HttpErrors carry user-facing messages; anything unexpected is logged and hidden.
+  const expected = err instanceof HttpError || status < 500;
+  if (!expected) console.error("[error]", err);
+  res.status(status).json({ error: expected ? err.message : "Something went wrong", details: expected ? err.details : undefined });
 }

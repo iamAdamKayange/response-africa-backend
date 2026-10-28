@@ -12,6 +12,18 @@ const upload = multer({
     ALLOWED_TYPES[file.mimetype] ? cb(null, true) : cb(new HttpError(400, "Only JPG, PNG, WebP, GIF or AVIF images can be uploaded")),
 });
 
+/** Detects the real image type from the file's first bytes (the browser-declared type can be faked). */
+function sniffImageType(buf) {
+  const b = (i) => buf[i];
+  const ascii = (start, end) => buf.subarray(start, end).toString("latin1");
+  if (b(0) === 0xff && b(1) === 0xd8 && b(2) === 0xff) return "image/jpeg";
+  if ([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a].every((v, i) => b(i) === v)) return "image/png";
+  if (ascii(0, 6) === "GIF87a" || ascii(0, 6) === "GIF89a") return "image/gif";
+  if (ascii(0, 4) === "RIFF" && ascii(8, 12) === "WEBP") return "image/webp";
+  if (ascii(4, 8) === "ftyp" && /^(avif|avis)$/.test(ascii(8, 12))) return "image/avif";
+  return null;
+}
+
 const apiBase = (req) => `${req.protocol}://${req.get("host")}`;
 
 /** POST /api/admin/uploads (multipart, field "file") → { url, key }. Mounted behind requireAuth. */
@@ -24,7 +36,9 @@ uploads.post("/", (req, res, next) => {
       if (err?.code === "LIMIT_FILE_SIZE") throw new HttpError(413, `Images must be ${MAX_UPLOAD_MB} MB or smaller`);
       if (err) throw err;
       if (!req.file) throw new HttpError(400, 'Attach an image in the "file" field');
-      const key = await putImage(req.file.buffer, req.file.mimetype, req.file.originalname);
+      const realType = sniffImageType(req.file.buffer);
+      if (!realType) throw new HttpError(400, "That file is not a valid JPG, PNG, WebP, GIF or AVIF image");
+      const key = await putImage(req.file.buffer, realType, req.file.originalname);
       res.status(201).json({ key, url: publicUrl(key, apiBase(req)) });
     } catch (e) {
       next(e);

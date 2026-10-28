@@ -20,3 +20,7 @@ export const config = {
     .filter(Boolean),
   isProduction: process.env.NODE_ENV === "production",
 };
+
+if (config.isProduction && config.jwtSecret.length < 32) {
+  throw new Error("JWT_SECRET must be at least 32 characters in production");
+}

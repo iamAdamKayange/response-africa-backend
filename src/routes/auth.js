@@ -6,6 +6,9 @@ import { requireAuth, signToken } from "../middleware/auth.js";
 import { toUser } from "../serializers.js";
 import { fields, HttpError, setClause } from "../utils.js";
 
+// Compared against when the email is unknown, so a wrong email takes as long as a wrong password.
+const DUMMY_HASH = bcrypt.hashSync("not-a-real-password", 12);
+
 const router = Router();
 
 const loginLimiter = rateLimit({
@@ -24,7 +27,7 @@ router.post("/login", loginLimiter, async (req, res) => {
 
   const { rows } = await query("SELECT * FROM users WHERE email = $1", [email]);
   const user = rows[0];
-  const ok = user && (await bcrypt.compare(password, user.password_hash));
+  const ok = (await bcrypt.compare(password, user?.password_hash ?? DUMMY_HASH)) && Boolean(user);
   if (!ok) throw new HttpError(401, "Incorrect email or password");
   if (!user.active) throw new HttpError(403, "This account has been disabled");
 
@@ -60,8 +63,10 @@ router.put("/me", requireAuth, async (req, res) => {
   if (!Object.keys(updates).length) return res.json({ user: toUser(req.user) });
 
   const { sql, params } = setClause(updates, 2);
-  const { rows } = await query(`UPDATE users SET ${sql}, updated_at = NOW() WHERE id = $1 RETURNING *`, [req.user.id, ...params]);
-  res.json({ user: toUser(rows[0]) });
+  const bump = updates.password_hash ? ", token_version = token_version + 1" : "";
+  const { rows } = await query(`UPDATE users SET ${sql}${bump}, updated_at = NOW() WHERE id = $1 RETURNING *`, [req.user.id, ...params]);
+  // A new password signs out every other session; this one gets a fresh token.
+  res.json({ user: toUser(rows[0]), ...(bump ? { token: signToken(rows[0]) } : {}) });
 });
 
 export default router;

@@ -11,7 +11,7 @@ const spec = (partial) => ({
   title: { required: !partial, max: 160 },
   summary: { max: 600 },
   region: { max: 40 },
-  link: { max: 500 },
+  link: { max: 500, url: "link" },
   published: { type: "boolean" },
   occurredAt: { type: "date" },
 });

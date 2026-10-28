@@ -52,7 +52,8 @@ router.put("/:id", async (req, res) => {
   if (!Object.keys(cols).length) throw new HttpError(400, "Nothing to update");
 
   const { sql, params } = setClause(cols, 2);
-  const { rows } = await query(`UPDATE users SET ${sql}, updated_at = NOW() WHERE id = $1 RETURNING *`, [id, ...params]);
+  const bump = cols.password_hash || cols.active === false || cols.role ? ", token_version = token_version + 1" : "";
+  const { rows } = await query(`UPDATE users SET ${sql}${bump}, updated_at = NOW() WHERE id = $1 RETURNING *`, [id, ...params]);
   if (!rows[0]) throw new HttpError(404, "User not found");
   res.json({ user: toUser(rows[0]) });
 });

@@ -13,6 +13,9 @@ CREATE TABLE IF NOT EXISTS users (
   updated_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Bumped whenever a password changes or an account is disabled, which signs out every existing session.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS token_version INTEGER NOT NULL DEFAULT 0;
+
 CREATE TABLE IF NOT EXISTS sections (
   slug        TEXT PRIMARY KEY,
   name        TEXT    NOT NULL,
