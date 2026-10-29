@@ -56,8 +56,21 @@ Created by `npm run seed` from the `SEED_*` values in `.env` (see `.env.example`
 
 | Role | Can do |
 | --- | --- |
-| **admin** | Everything: publish/unpublish, feature, edit/delete any article, briefings, team, subscribers |
-| **author** | Write own articles, save drafts, submit for review, post briefings. Cannot publish. |
+| **admin** | Everything: publish/unpublish, choose the lead story, edit/delete any article, briefings, team, subscribers, newsletter |
+| **author** | Write, publish, edit and unpublish their own articles (no admin review); post briefings. Cannot delete published articles or choose the lead story. |
+
+## Newsletter (Resend)
+
+- **New article alert:** every article is emailed to all active subscribers the first time it is published
+  (by an admin or an author). Re-saving a published article never re-sends it.
+- **The Daily Brief:** Monday–Friday at `DAILY_BRIEF_HOUR` (`DAILY_BRIEF_TZ`), covering everything published
+  since the previous brief (Monday's covers the weekend). Skipped when nothing new was published. At most once a day.
+- **Welcome email** when someone subscribes; every email has an unsubscribe link and Gmail/Apple one-click unsubscribe.
+- Admin panel → **Newsletter**: setup status, delivery log, "Send me a test" and "Send Daily Brief now".
+
+Setup: create a Resend account, add and verify the domain `rapid-response.africa` (Resend shows the DNS
+records to add at your DNS host), create an API key, then set `RESEND_API_KEY` (and the other email
+variables in `.env.example`) on the server and restart. Resend's free plan allows 100 emails/day.
 
 ## API
 
@@ -70,7 +83,8 @@ Public
 | GET | `/api/articles` | `?section=&region=&q=&featured=true&limit=&offset=&body=true` |
 | GET | `/api/articles/:slug` | Published only |
 | GET | `/api/briefings` | `?limit=` |
-| POST | `/api/subscribers` | `{ email }` |
+| POST | `/api/subscribers` | `{ email }` (sends the welcome email) |
+| GET/POST | `/api/unsubscribe?token=` | Link in every email / one-click unsubscribe |
 | GET | `/api/media/<key>` | Uploaded images (when the bucket has no public URL) |
 
 Auth (`Authorization: Bearer <token>`)
@@ -86,6 +100,9 @@ Auth (`Authorization: Bearer <token>`)
 | POST | `/api/admin/uploads` | multipart field `file` → `{ url, key }` |
 | GET/POST/PUT/DELETE | `/api/admin/users[/:id]` | Admin only |
 | GET/DELETE | `/api/admin/subscribers[/:id]` | Admin only; `?format=csv` to export |
+| GET | `/api/admin/newsletter` | Admin only; setup status and send log |
+| POST | `/api/admin/newsletter/test` | Admin only; emails the latest story to yourself |
+| POST | `/api/admin/newsletter/daily` | Admin only; sends today's Daily Brief now |
 
 ### Article body format
 

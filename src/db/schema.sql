@@ -68,6 +68,42 @@ CREATE TABLE IF NOT EXISTS subscribers (
   created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Newsletter: each subscriber gets a secret token for one-click unsubscribe links.
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS token TEXT;
+ALTER TABLE subscribers ADD COLUMN IF NOT EXISTS unsubscribed_at TIMESTAMPTZ;
+UPDATE subscribers SET token = md5(random()::text || id::text || clock_timestamp()::text) || md5(random()::text)
+WHERE token IS NULL;
+CREATE UNIQUE INDEX IF NOT EXISTS subscribers_token_idx ON subscribers (token);
+
+-- Articles are emailed once, the first time they go live. When this column is first added, every
+-- article that is already published is marked as sent, so turning email on never mails old stories.
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM information_schema.columns WHERE table_name = 'articles' AND column_name = 'notified_at'
+  ) THEN
+    ALTER TABLE articles ADD COLUMN notified_at TIMESTAMPTZ;
+    UPDATE articles SET notified_at = COALESCE(published_at, NOW()) WHERE status = 'published';
+  END IF;
+END $$;
+
+-- One row per newsletter send (article alert, daily brief, test), shown in the admin panel.
+CREATE TABLE IF NOT EXISTS email_sends (
+  id          SERIAL PRIMARY KEY,
+  kind        TEXT        NOT NULL CHECK (kind IN ('article', 'daily', 'test')),
+  dedupe_key  TEXT        UNIQUE,
+  subject     TEXT        NOT NULL,
+  article_id  INTEGER     REFERENCES articles(id) ON DELETE SET NULL,
+  status      TEXT        NOT NULL DEFAULT 'sending' CHECK (status IN ('sending', 'sent', 'partial', 'failed', 'skipped')),
+  recipients  INTEGER     NOT NULL DEFAULT 0,
+  delivered   INTEGER     NOT NULL DEFAULT 0,
+  failed      INTEGER     NOT NULL DEFAULT 0,
+  note        TEXT,
+  started_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  finished_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS email_sends_started_idx ON email_sends (started_at DESC);
+
 -- Only one lead story: keep the most recently published one if several are flagged (idempotent).
 UPDATE articles SET featured = FALSE
 WHERE featured AND id <> (

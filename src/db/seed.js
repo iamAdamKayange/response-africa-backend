@@ -48,8 +48,8 @@ try {
     for (const [i, a] of sampleArticles.entries()) {
       await pool.query(
         `INSERT INTO articles (slug, title, dek, kicker, section_slug, region, image_url, image_alt, body, byline,
-                               status, featured, author_id, read_minutes, published_at)
-         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'published',$11,$12,$13,$14)`,
+                               status, featured, author_id, read_minutes, published_at, notified_at)
+         VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'published',$11,$12,$13,$14,$14)`,
         [a.slug, a.title, a.dek, a.kicker, a.section, a.region, a.image, a.imageAlt, a.body, a.byline,
          i === 0, i % 3 === 0 ? authorId : adminId, readMinutes(a.body), a.publishedAt]
       );

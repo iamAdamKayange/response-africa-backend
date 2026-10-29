@@ -1,11 +1,13 @@
 import { Router } from "express";
 import { query } from "../db/pool.js";
+import { notifyArticle } from "../email/newsletter.js";
 import { ARTICLE_SELECT, toArticle } from "../serializers.js";
 import { fields, HttpError, intParam, readMinutes, setClause, slugify } from "../utils.js";
 
 // Admin/Author article management. Mounted behind requireAuth.
-//  - Authors see and edit only their own articles, and can only save as "draft" or submit for "review".
-//  - Admins see everything, publish/unpublish, feature, and delete anything.
+//  - Authors see and edit only their own articles and can publish them directly (no admin review).
+//  - Admins see everything, choose the lead story, set publish dates, and can delete published articles.
+//  - The first time an article goes live it is emailed to subscribers (see email/newsletter.js).
 
 const router = Router();
 
@@ -30,7 +32,6 @@ const articleSpec = (partial) => ({
 /** Maps API field names to DB columns, enforcing role rules. */
 async function toColumns(req, data, existing) {
   if (!isAdmin(req)) {
-    if (data.status === "published") throw new HttpError(403, "Only an admin can publish. Submit for review instead.");
     delete data.featured;
     delete data.publishedAt;
   }
@@ -134,23 +135,23 @@ router.post("/", async (req, res) => {
     keys.map((k) => cols[k])
   );
   if (cols.featured) await clearOtherLeads(rows[0].id);
+  const newsletter = cols.status === "published" ? await notifyArticle(rows[0].id) : null;
   const created = await query(`${ARTICLE_SELECT} WHERE a.id = $1`, [rows[0].id]);
-  res.status(201).json({ article: toArticle(created.rows[0]) });
+  res.status(201).json({ article: toArticle(created.rows[0]), newsletter });
 });
 
 router.put("/:id", async (req, res) => {
   const existing = await loadOwned(req);
-  if (!isAdmin(req) && existing.status === "published") {
-    throw new HttpError(403, "This article is live. Ask an admin to make changes.");
-  }
   const cols = await toColumns(req, fields(req.body, articleSpec(true)), existing);
   if (Object.keys(cols).length) {
     const { sql, params } = setClause(cols, 2);
     await query(`UPDATE articles SET ${sql}, updated_at = NOW() WHERE id = $1`, [existing.id, ...params]);
     if (cols.featured) await clearOtherLeads(existing.id);
   }
+  // notifyArticle only acts the first time an article is live, so re-saving a published story never re-sends it.
+  const newsletter = (cols.status ?? existing.status) === "published" ? await notifyArticle(existing.id) : null;
   const updated = await query(`${ARTICLE_SELECT} WHERE a.id = $1`, [existing.id]);
-  res.json({ article: toArticle(updated.rows[0]) });
+  res.json({ article: toArticle(updated.rows[0]), newsletter });
 });
 
 router.delete("/:id", async (req, res) => {
